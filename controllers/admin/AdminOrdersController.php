@@ -3632,7 +3632,6 @@ class AdminOrdersControllerCore extends AdminController
             'htl_booking_order_data' => $bookingOrderInfo,
             'hotel_order_status' => $htlOrderStatus,
             'order_detail_data' => $order_detail_data,
-            'max_child_in_room' => Configuration::get('WK_GLOBAL_MAX_CHILD_IN_ROOM'),
             'max_child_age' => Configuration::get('WK_GLOBAL_CHILD_MAX_AGE'),
             'hotel_service_products' => $orderHotelServiceProducts,
             'standalone_service_products' => $orderStandaloneServiceProducts,
