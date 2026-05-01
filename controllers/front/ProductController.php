@@ -675,7 +675,7 @@ class ProductControllerCore extends FrontController
             'id_room_type' => $idProduct,
             'id_cart' => $idCart,
             'id_guest' => $idGuest,
-            'search_unavai' => 1, // Need to search unavailable rooms to check LOS restriction
+            'search_unavai' => 1,
         );
         if (Configuration::get('PS_FRONT_ROOM_UNIT_SELECTION_TYPE') == HotelBookingDetail::PS_ROOM_UNIT_SELECTION_TYPE_OCCUPANCY) {
             $bookingParams['occupancy'] = $occupancy;
@@ -694,9 +694,39 @@ class ProductControllerCore extends FrontController
         }
 
         $totalAvailableRooms = 0;
+        $losRestrictionFailed = false;
+        $losMinFailed = false;
+        $losMaxFailed = false;
+        // Initialize LOS values for the selected room type/date
+        $objRoomTypeRestrictionDateRange = new HotelRoomTypeRestrictionDateRange();
+        $losRestriction = $objRoomTypeRestrictionDateRange->getRoomTypeLengthOfStay($idProduct, $dateFrom);
+        $losMinDays = (int) (($losRestriction && isset($losRestriction['min_los'])) ? $losRestriction['min_los'] : 0);
+        $losMaxDays = (int) (($losRestriction && isset($losRestriction['max_los'])) ? $losRestriction['max_los'] : 0);
         if ($hotelRoomData = $objBookingDetail->dataForFrontSearch($bookingParams)) {
             $totalAvailableRooms = $hotelRoomData['stats']['num_avail'];
             $quantity = ($quantity > $totalAvailableRooms) ? $totalAvailableRooms : $quantity;
+            // Check if rooms are unavailable due to LOS restriction
+            if ($totalAvailableRooms <= 0 && !empty($hotelRoomData['rm_data'][$idProduct]['data']['unavailable'])) {
+                foreach ($hotelRoomData['rm_data'][$idProduct]['data']['unavailable'] as $unavailableRoom) {
+                    if (empty($unavailableRoom['detail'])) {
+                        continue;
+                    }
+                    foreach ($unavailableRoom['detail'] as $detail) {
+                        if (!empty($detail['id_status']) && $detail['id_status'] == HotelRoomInformation::STATUS_SEARCH_LOS_UNSATISFIED) {
+                            $losRestrictionFailed = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+            if ($losRestrictionFailed) {
+                // Determine which restriction failed
+                if ($losMinDays > 0 && $numDays < $losMinDays) {
+                    $losMinFailed = true;
+                } elseif ($losMaxDays > 0 && $numDays > $losMaxDays) {
+                    $losMaxFailed = true;
+                }
+            }
         }
 
         // calculate room type price first
