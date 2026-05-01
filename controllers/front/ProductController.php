@@ -700,8 +700,8 @@ class ProductControllerCore extends FrontController
         // Initialize LOS values for the selected room type/date
         $objRoomTypeRestrictionDateRange = new HotelRoomTypeRestrictionDateRange();
         $losRestriction = $objRoomTypeRestrictionDateRange->getRoomTypeLengthOfStay($idProduct, $dateFrom);
-        $losMinDays = (int) (($losRestriction && isset($losRestriction['min_los'])) ? $losRestriction['min_los'] : 0);
-        $losMaxDays = (int) (($losRestriction && isset($losRestriction['max_los'])) ? $losRestriction['max_los'] : 0);
+        $losMinDays = (int) ($losRestriction ? $losRestriction['min_los'] : 1);
+        $losMaxDays = (int) ($losRestriction ? $losRestriction['max_los'] : 0);
         if ($hotelRoomData = $objBookingDetail->dataForFrontSearch($bookingParams)) {
             $totalAvailableRooms = $hotelRoomData['stats']['num_avail'];
             $quantity = ($quantity > $totalAvailableRooms) ? $totalAvailableRooms : $quantity;
@@ -721,7 +721,7 @@ class ProductControllerCore extends FrontController
             }
             if ($losRestrictionFailed) {
                 // Determine which restriction failed
-                if ($losMinDays > 0 && $numDays < $losMinDays) {
+                if ($numDays < $losMinDays) {
                     $losMinFailed = true;
                 } elseif ($losMaxDays > 0 && $numDays > $losMaxDays) {
                     $losMaxFailed = true;
@@ -894,6 +894,11 @@ class ProductControllerCore extends FrontController
         $smartyVars['num_days'] = $numDays;
         $smartyVars['warning_count'] = $warningCount;
         $smartyVars['total_available_rooms'] = $totalAvailableRooms;
+        $smartyVars['los_restriction_failed'] = $losRestrictionFailed;
+        $smartyVars['los_min_days'] = $losMinDays;
+        $smartyVars['los_max_days'] = $losMaxDays;
+        $smartyVars['los_min_failed'] = $losMinFailed;
+        $smartyVars['los_max_failed'] = $losMaxFailed;
         $smartyVars['has_room_type_demands'] = $roomTypeDemands ? true : false; // whether to show price breakup
         $smartyVars['rooms_price'] = $totalRoomPrice;
         $smartyVars['demands_price_per_room'] = $demandsPricePerRoom;
