@@ -34,7 +34,7 @@
 									<h1 class="header-hotel-name">{$WK_HTL_CHAIN_NAME|escape:'htmlall':'UTF-8'}</h1>
 								{/block}
 								{block name='header_hotel_description'}
-									<p class="header-hotel-desc">{$WK_HTL_TAG_LINE|escape:'htmlall':'UTF-8'}</p>
+									<p class="header-hotel-desc js-header-tagline"{if !isset($wkHeaderMediaTagLine) || !$wkHeaderMediaTagLine} style="display:none"{/if}>{if isset($wkHeaderMediaTagLine) && $wkHeaderMediaTagLine}{$wkHeaderMediaTagLine|escape:'html':'UTF-8'}{/if}</p>
 								{/block}
 								<hr class="heasder-desc-hr-second"/>
 							</div>
