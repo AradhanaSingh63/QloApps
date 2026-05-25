@@ -1216,6 +1216,32 @@ class FrontControllerCore extends Controller
             'WK_DISPLAY_PROPERTIES_LINK_IN_HEADER' => Configuration::get('WK_DISPLAY_PROPERTIES_LINK_IN_HEADER'),
         ));
 
+        if ($this->php_self === 'index') {
+            $mediaTypeInt     = (int)(Configuration::get('WK_HEADER_MEDIA_TYPE') ?: HotelHeaderMedia::MEDIA_TYPE_IMAGE);
+            $headerMediaItems = HotelHeaderMedia::getItems($mediaTypeInt);
+            $mimeMap = array('mp4' => 'video/mp4', 'webm' => 'video/webm', 'ogg' => 'video/ogg');
+            foreach ($headerMediaItems as &$headerMediaItem) {
+                if ($headerMediaItem['source_type'] === 'upload') {
+                    $ext = strtolower(pathinfo($headerMediaItem['name'], PATHINFO_EXTENSION));
+                    $headerMediaItem['mime_type'] = isset($mimeMap[$ext]) ? $mimeMap[$ext] : 'video/mp4';
+                }
+            }
+            unset($headerMediaItem);
+            $this->context->smarty->assign(array(
+                'WK_HEADER_MEDIA_TYPE'       => $mediaTypeInt,
+                'WK_HEADER_MEDIA_TYPE_IMAGE' => HotelHeaderMedia::MEDIA_TYPE_IMAGE,
+                'WK_HEADER_MEDIA_TYPE_VIDEO' => HotelHeaderMedia::MEDIA_TYPE_VIDEO,
+                'WK_HEADER_NAV_TYPE_DOTS'    => HotelHeaderMedia::NAV_TYPE_DOTS,
+                'headerMediaItems'           => $headerMediaItems,
+                'headerSliderConfig'         => array(
+                    'nav_type'  => (int)(Configuration::get('WK_HEADER_SLIDER_NAV_TYPE') ?: HotelHeaderMedia::NAV_TYPE_DOTS),
+                    'auto_play' => (int)Configuration::get('WK_HEADER_SLIDER_AUTO_PLAY'),
+                    'interval'  => (int)Configuration::get('WK_HEADER_SLIDER_INTERVAL'),
+                    'anim_type' => (int)(Configuration::get('WK_HEADER_SLIDER_ANIM_TYPE') ?: HotelHeaderMedia::ANIM_TYPE_SLIDE),
+                ),
+            ));
+        }
+
         $this->context->smarty->assign($this->initLogoAndFavicon());
     }
 

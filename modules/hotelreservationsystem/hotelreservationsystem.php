@@ -74,6 +74,9 @@ class HotelReservationSystem extends Module
             }
         }
         //End
+        if (Tools::getValue('controller') == 'index') {
+            $this->context->controller->addJS($this->_path.'views/js/HotelHeaderMediaFront.js');
+        }
         $this->context->controller->addCSS($this->_path.'/views/css/HotelReservationFront.css');
         $this->context->controller->addJS($this->_path.'/views/js/HotelReservationFront.js');
     }
@@ -325,12 +328,12 @@ class HotelReservationSystem extends Module
     public function hookDisplayAfterHookTop()
     {
         if (Tools::getValue('controller') == 'index') {
-            $this->context->smarty->assign(
-                array(
-                    'WK_HTL_CHAIN_NAME' => Configuration::get('WK_HTL_CHAIN_NAME', $this->context->language->id),
-                    'WK_HTL_TAG_LINE' => Configuration::get('WK_HTL_TAG_LINE', $this->context->language->id),
-                )
-            );
+            $mediaTypeInt = (int)(Configuration::get('WK_HEADER_MEDIA_TYPE') ?: HotelHeaderMedia::MEDIA_TYPE_IMAGE);
+            $activeItems  = HotelHeaderMedia::getItems($mediaTypeInt, 1, $this->context->language->id);
+            $this->context->smarty->assign(array(
+                'WK_HTL_CHAIN_NAME'    => Configuration::get('WK_HTL_CHAIN_NAME', $this->context->language->id),
+                'wkHeaderMediaTagLine' => ($activeItems && !empty($activeItems[0]['tag_line'])) ? $activeItems[0]['tag_line'] : '',
+            ));
             return $this->display(__FILE__, 'headerHotelDescBlock.tpl');
         }
     }
@@ -486,7 +489,6 @@ class HotelReservationSystem extends Module
             // update configuration keys
             $configKeys = array(
                 'WK_HTL_CHAIN_NAME',
-                'WK_HTL_TAG_LINE',
                 'WK_HTL_SHORT_DESC',
             );
             HotelHelper::updateConfigurationLangKeys($newIdLang, $configKeys);
@@ -530,6 +532,7 @@ class HotelReservationSystem extends Module
         $this->installTab('AdminHotelGeneralSettings', 'Hotel General Configuration', 'AdminHotelConfigurationSetting', false);
         $this->installTab('AdminHotelFeaturePricesSettings', 'Advanced Price Rules', 'AdminHotelConfigurationSetting', false);
         $this->installTab('AdminRoomTypeGlobalDemand', 'Additional Demand Configuration', 'AdminHotelConfigurationSetting', false);
+        $this->installTab('AdminHotelHeaderMedia', 'Header Media Configuration', 'AdminHotelConfigurationSetting', false);
         $this->installTab('AdminBookingDocument', 'Booking Documents', false, false);
 
         return true;
@@ -637,9 +640,10 @@ class HotelReservationSystem extends Module
             'WK_ROOM_LEFT_WARNING_NUMBER',
             'WK_HTL_ESTABLISHMENT_YEAR',
             'WK_HTL_CHAIN_NAME',
+            'WK_HTL_TAG_LINE',
             'WK_TITLE_HEADER_BLOCK',
             'WK_CONTENT_HEADER_BLOCK',
-            'WK_HTL_HEADER_IMAGE',
+            'WK_HOTEL_HEADER_IMAGE',
             'WK_ALLOW_ADVANCED_PAYMENT',
             'WK_ADVANCED_PAYMENT_GLOBAL_MIN_AMOUNT',
             'WK_ADVANCED_PAYMENT_INC_TAX',
@@ -648,7 +652,12 @@ class HotelReservationSystem extends Module
             'WK_HOTEL_NAME_ENABLE',
             'WK_CUSTOMER_SUPPORT_PHONE_NUMBER',
             'WK_CUSTOMER_SUPPORT_EMAIL',
-            'WK_DISPLAY_CONTACT_PAGE_HOTEL_LIST'
+            'WK_DISPLAY_CONTACT_PAGE_HOTEL_LIST',
+            'WK_HEADER_MEDIA_TYPE',
+            'WK_HEADER_SLIDER_NAV_TYPE',
+            'WK_HEADER_SLIDER_AUTO_PLAY',
+            'WK_HEADER_SLIDER_INTERVAL',
+            'WK_HEADER_SLIDER_ANIM_TYPE',
         );
         foreach ($configKeys as $key) {
             if (!Configuration::deleteByName($key)) {
