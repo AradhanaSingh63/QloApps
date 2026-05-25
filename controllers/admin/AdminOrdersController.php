@@ -72,6 +72,8 @@ class AdminOrdersControllerCore extends AdminController
         ) FROM `'._DB_PREFIX_.'htl_booking_detail` hbd WHERE hbd.`id_order` = a.`id_order`) as total_guests,
         (SELECT SUM(DATEDIFF(hbd.`date_to`, hbd.`date_from`)) FROM `'._DB_PREFIX_.'htl_booking_detail` hbd WHERE hbd.`id_order` = a.`id_order`) as los,
         hbd.`id_room` AS id_room_information,
+        (SELECT GROUP_CONCAT(DISTINCT hbd.`date_from` ORDER BY hbd.`date_from` SEPARATOR \', \') FROM `'._DB_PREFIX_.'htl_booking_detail` hbd WHERE hbd.`id_order` = a.`id_order`) AS date_from,
+        (SELECT GROUP_CONCAT(DISTINCT hbd.`date_to` ORDER BY hbd.`date_to` SEPARATOR \', \') FROM `'._DB_PREFIX_.'htl_booking_detail` hbd WHERE hbd.`id_order` = a.`id_order`) AS date_to,
         (SELECT COUNT(spod.`id_service_product_order_detail`) FROM `'._DB_PREFIX_.'service_product_order_detail` spod WHERE spod.`id_order` = a.`id_order` AND spod.`id_htl_booking_detail`=0) as num_products';
 
         $this->_join = '
@@ -185,16 +187,20 @@ class AdminOrdersControllerCore extends AdminController
                 'displayed' => false,
             ),
             'date_from' => array(
-                'title' => $this->l('Check-in'),
+                'title' => $this->l('Check-in date'),
                 'filter_key' => 'hbd!date_from',
-                'type'=>'date',
-                'displayed' => false,
+                'type' => 'date',
+                'callback' => 'formatCheckInDates',
+                'optional' => true,
+                'displayed' => true,
             ),
             'date_to' => array(
-                'title' => $this->l('Check-out'),
+                'title' => $this->l('Check-out date'),
                 'filter_key' => 'hbd!date_to',
                 'type'=>'date',
-                'displayed' => false,
+                 'callback' => 'formatCheckOutDates',
+                'optional' => true,
+                'displayed' => true,
             ),
             'total_guests' => array(
                 'title' => $this->l('Guests'),
@@ -357,6 +363,30 @@ class AdminOrdersControllerCore extends AdminController
             $idCurrency = $row['id_currency'];
         }
         return Tools::displayPrice($echo, (int)$idCurrency);
+    }
+
+    public function formatCheckInDates($dates, $row)
+    {
+        if (empty($dates)) {
+            return '--';
+        }
+        $formatted = array();
+        foreach (explode(', ', $dates) as $date) {
+            $formatted[] = Tools::displayDate(trim($date));
+        }
+        return implode(', ', $formatted);
+    }
+
+    public function formatCheckOutDates($dates, $row)
+    {
+        if (empty($dates)) {
+            return '--';
+        }
+        $formatted = array();
+        foreach (explode(', ', $dates) as $date) {
+            $formatted[] = Tools::displayDate(trim($date));
+        }
+        return implode(', ', $formatted);
     }
 
     public function initPageHeaderToolbar()
@@ -791,6 +821,8 @@ class AdminOrdersControllerCore extends AdminController
                     'order' => $objOrder,
                     'current_index' => self::$currentIndex,
                     'hotel_order_status' => $htlOrderStatus,
+                    'ROOM_STATUS_ALLOTED' => HotelBookingDetail::STATUS_ALLOTED,
+                    'current_room_status' => Tools::getValue('current_room_status')
                 )
             );
             $modal = array(
@@ -3117,9 +3149,6 @@ class AdminOrdersControllerCore extends AdminController
             $this->kpis[] = $helper;
         }
 
-        Hook::exec('action'.$this->controller_name.'KPIListingModifier', array(
-            'kpis' => &$kpis,
-        ));
 
         return parent::renderKpis();
     }
@@ -8725,30 +8754,49 @@ class AdminOrdersControllerCore extends AdminController
             }
 
             if (empty($this->errors)) {
-                $objHotelBookingDetail->id_status = $newStatus;
-                if ($newStatus == HotelBookingDetail::STATUS_CHECKED_IN) {
-                    $objHotelBookingDetail->check_in = $statusDate;
-                } elseif ($newStatus == HotelBookingDetail::STATUS_CHECKED_OUT) {
-                    $objHotelBookingDetail->check_out = $statusDate;
-                } else {
-                    $objHotelBookingDetail->check_in = '';
-                    $objHotelBookingDetail->check_out = '';
-                }
-                if ($objHotelBookingDetail->save()) {
-                    Hook::exec(
-                        'actionRoomBookingStatusUpdateAfter',
-                        array(
-                            'id_hotel_booking_detail' => $objHotelBookingDetail->id,
-                            'id_order' => $objHotelBookingDetail->id_order,
-                            'id_room' => $objHotelBookingDetail->id_room,
-                            'date_from' => $objHotelBookingDetail->date_from,
-                            'date_to' => $objHotelBookingDetail->date_to
-                        )
-                    );
 
-                    Tools::redirectAdmin(self::$currentIndex.'&id_order='.(int) $objHotelBookingDetail->id_order.'&vieworder&token='.$this->token.'&conf=4');
+                $id_order = $objHotelBookingDetail->id_order;
+                $order = new Order($id_order);
+                $remainingCheckoutRooms = 0;
+                if ($newStatus == HotelBookingDetail::STATUS_CHECKED_OUT) {
+                    $orderBookings = $objHotelBookingDetail->getOrderCurrentDataByOrderId(
+                        $id_order,
+                        array(HotelBookingDetail::STATUS_ALLOTED, HotelBookingDetail::STATUS_CHECKED_IN),
+                        0,
+                        0
+                    );
+                    $remainingCheckoutRooms = count($orderBookings);
+                }
+                $hasPendingBills = $order->getTotalPaid() < $order->getOrderTotal();
+
+                if ($remainingCheckoutRooms == 1 && $newStatus == HotelBookingDetail::STATUS_CHECKED_OUT && $hasPendingBills) {
+                    $this->errors[] = Tools::displayError('You cannot checkout the last room while there are pending bills for this order.');
                 } else {
-                    $this->errors[] = Tools::displayError('Some error occurred. Please try again.');
+                    $objHotelBookingDetail->id_status = $newStatus;
+                    if ($newStatus == HotelBookingDetail::STATUS_CHECKED_IN) {
+                        $objHotelBookingDetail->check_in = $statusDate;
+                    } elseif ($newStatus == HotelBookingDetail::STATUS_CHECKED_OUT) {
+                        $objHotelBookingDetail->check_out = $statusDate;
+                    } else {
+                        $objHotelBookingDetail->check_in = '';
+                        $objHotelBookingDetail->check_out = '';
+                    }
+                    if ($objHotelBookingDetail->save()) {
+                        Hook::exec(
+                            'actionRoomBookingStatusUpdateAfter',
+                            array(
+                                'id_hotel_booking_detail' => $objHotelBookingDetail->id,
+                                'id_order' => $objHotelBookingDetail->id_order,
+                                'id_room' => $objHotelBookingDetail->id_room,
+                                'date_from' => $objHotelBookingDetail->date_from,
+                                'date_to' => $objHotelBookingDetail->date_to
+                            )
+                        );
+
+                        Tools::redirectAdmin(self::$currentIndex . '&id_order=' . (int) $objHotelBookingDetail->id_order . '&vieworder&token=' . $this->token . '&conf=4');
+                    } else {
+                        $this->errors[] = Tools::displayError('Some error occurred. Please try again.');
+                    }
                 }
             }
         } else {
