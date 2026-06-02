@@ -115,7 +115,7 @@ class AdminSlipControllerCore extends AdminController
 
     public function initPageHeaderToolbar()
     {
-        if (empty($this->display)) {
+        if (empty($this->display) || $this->display == 'list') {
             $this->page_header_toolbar_btn['new_credit_slip'] = array(
                 'href' => self::$currentIndex . '&add' . $this->table . '&token=' . $this->token,
                 'desc' => $this->l('Add Credit Slip', null, null, false),
@@ -129,8 +129,7 @@ class AdminSlipControllerCore extends AdminController
     public function renderForm()
     {
         if ($this->display == 'add') {
-            $order = new Order();
-            $orderList = $order->getOrdersWithInformations();
+            $orderList = Order::getOrdersWithInformations(null, null, true);
             foreach ($orderList as &$order) {
                 $order['order_label'] = $order['reference'] . ' #' . (int) $order['id_order'];
             }
@@ -141,7 +140,7 @@ class AdminSlipControllerCore extends AdminController
                     'title' => $this->l('Credit slip'),
                     'icon' => 'icon-print'
                 ),
-                'description' => $this->l('Kindly check the credit slip again before saving it, as it cannot be changed once created.'),
+                'description' => '<strong>' . $this->l('Note: Before generating the credit slip, please review all details carefully. Once the credit slip is generated, it cannot be modified.') . '</strong>',
                 'input' => array(
                     array(
                         'type' => 'select',
@@ -150,6 +149,10 @@ class AdminSlipControllerCore extends AdminController
                         'required' => true,
                         'hint' => $this->l('Select id order'),
                         'class' => 'chosen',
+                        'col' => 3,
+                        'desc' => $this->context->smarty->fetch(
+                            _PS_ADMIN_DIR_ . '/themes/default/template/controllers/slip/_order_info_desc.tpl'
+                        ),
                         'options' => array(
                             'query' => $orderList,
                             'id' => 'id_order',
@@ -158,13 +161,28 @@ class AdminSlipControllerCore extends AdminController
                     ),
                     array(
                         'type' => 'select',
-                        'label' => $this->l('Booking Detail'),
-                        'name' => 'id_booking_detail',
+                        'label' => $this->l('Room Type'),
+                        'name' => 'id_room_type',
                         'required' => true,
+                        'hint' => $this->l('Select a room type'),
+                        'col' => 3,
                         'options' => array(
                             'query' => array(),
                             'id' => 'id',
-                            'name' => 'booking_label'
+                            'name' => 'name'
+                        )
+                    ),
+                    array(
+                        'type' => 'select',
+                        'label' => $this->l('Room'),
+                        'name' => 'id_booking_detail',
+                        'required' => true,
+                        'hint' => $this->l('Select a room to generate the credit slip for'),
+                        'col' => 3,
+                        'options' => array(
+                            'query' => array(),
+                            'id' => 'id',
+                            'name' => 'room_label'
                         )
                     ),
                     array(
@@ -175,10 +193,13 @@ class AdminSlipControllerCore extends AdminController
                         'required' => true,
                         'col' => 2,
                         'suffix' => $this->context->currency->sign,
+                        'desc' => $this->context->smarty->fetch(
+                            _PS_ADMIN_DIR_ . '/themes/default/template/controllers/slip/_booking_amount_desc.tpl'
+                        ),
                     ),
                 ),
                 'submit' => array(
-                    'title' => $this->l('Save'),
+                    'title' => $this->l('Generate'),
                     'name' => 'submitCreditSlip',
                 )
             );
@@ -224,7 +245,78 @@ class AdminSlipControllerCore extends AdminController
 
     public function postProcess()
     {
+<<<<<<< HEAD
         if (Tools::getValue('submitAddorder_slip')) {
+=======
+        if (Tools::getValue('submitCreditSlip')) {
+            $creditSlipAmount = trim(Tools::getValue('credit_slip_amount'));
+            if (empty($creditSlipAmount)) {
+                $this->errors[] = $this->l('Credit slip Amount is required for the generate credit slip');
+            } elseif (!is_numeric($creditSlipAmount)) {
+                $this->errors[] = $this->l('Credit slip Amount must be a valid number');
+            } elseif ((float) $creditSlipAmount <= 0) {
+                $this->errors[] = $this->l('Credit slip Amount must be greater than 0');
+            }
+
+            if (!count($this->errors)) {
+                $objOrder = new Order(Tools::getValue('id_order'));
+                $creditAmount = $creditSlipAmount;
+                $idBookingDetail = Tools::getValue('id_booking_detail');
+                $customer = new Customer($objOrder->id_customer);
+                $bookingList = array();
+                $objHotelBookingDetail = new HotelBookingDetail($idBookingDetail);
+
+                if ($idHtlBooking = $objHotelBookingDetail->id) {
+                    $numDays = HotelHelper::getNumberOfDays(
+                        $objHotelBookingDetail->date_from,
+                        $objHotelBookingDetail->date_to
+                    );
+
+                    $idOrderDetail = $objHotelBookingDetail->id_order_detail;
+
+                    $bookingList = array(
+                        array(
+                            'id_htl_booking' => $idHtlBooking,
+                            'id_order_detail' => $idOrderDetail,
+                            'quantity' => $numDays,
+                            'num_days' => $numDays,
+                            'unit_price' => (float) $creditAmount / $numDays,
+                            'amount' => (float) $creditAmount,
+                        )
+                    );
+                }
+
+                if (!$idCreditSlip = OrderSlip::create($objOrder, $bookingList, 0, $creditAmount, $creditAmount, 0 , OrderSlip::MANUAL_CREDIT_SLIP_TYPE)) {
+                    $this->errors[] = $this->l('A credit slip cannot be generated. ');
+                } else {
+
+                    Hook::exec('actionOrderSlipAdd', array('order' => $objOrder, 'bookingList' => $bookingList));
+
+                    $params['{credit_slip_url}'] = $this->context->link->getPageLink('order-slip', true);
+
+                    @Mail::Send(
+                        (int)$objOrder->id_lang,
+                        'credit_slip',
+                        Mail::l('New credit slip generated for you', (int)$objOrder->id_lang),
+                        $params,
+                        $customer->email,
+                        $customer->firstname.' '.$customer->lastname,
+                        null,
+                        null,
+                        null,
+                        null,
+                        _PS_MAIL_DIR_,
+                        true,
+                        (int)$objOrder->id_shop
+                    );
+                }
+                Tools::redirectAdmin(self::$currentIndex . '&token=' . $this->token . '&conf=3');
+            } else {
+                $this->display = 'add';
+                return;
+            }
+        } else if (Tools::getValue('submitAddorder_slip')) {
+>>>>>>> gli-2724
             if (!Validate::isDate(Tools::getValue('date_from'))) {
                 $this->errors[] = $this->l('Invalid "From" date');
             }
@@ -405,12 +497,70 @@ class AdminSlipControllerCore extends AdminController
         $this->ajaxDie(json_encode($response));
     }
 
+<<<<<<< HEAD
+=======
+    public function ajaxProcessGetBookingDetails()
+    {
+        $idOrder = (int) Tools::getValue('id_order');
+        $objOrder = new Order($idOrder);
+        $currency = Currency::getCurrency((int)$objOrder->id_currency);
+        $objHotelBookingDetail = new HotelBookingDetail();
+        $bookingDetails = $objHotelBookingDetail->getBookingDataByOrderId($idOrder);
+
+        $objBookingDemands = new HotelBookingDemands();
+        $objServiceProductOrderDetail = new ServiceProductOrderDetail();
+
+        foreach ($bookingDetails as &$booking) {
+            $booking['extra_service_total_price_tax_incl'] = 0;
+
+            $extraDemands = $objBookingDemands->getRoomTypeBookingExtraDemands(
+                $idOrder,
+                $booking['id_product'],
+                $booking['id_room'],
+                $booking['date_from'],
+                $booking['date_to'],
+                0,
+                0,
+                1,
+                $booking['id']
+            );
+            if ($extraDemands) {
+                foreach ($extraDemands as $demand) {
+                    $booking['extra_service_total_price_tax_incl'] += (float) $demand['total_price_tax_incl'];
+                }
+            }
+
+            $roomServices = $objServiceProductOrderDetail->getRoomTypeServiceProducts(
+                0, 0, 0, 0, 0, 0, 0, 0, null, null, null, 0, $booking['id']
+            );
+            if ($roomServices && isset($roomServices[$booking['id']]['additional_services'])) {
+                foreach ($roomServices[$booking['id']]['additional_services'] as $service) {
+                    $booking['extra_service_total_price_tax_incl'] += (float) $service['total_price_tax_incl'];
+                }
+            }
+        }
+        unset($booking);
+
+        die(Tools::jsonEncode(array(
+            'bookings' => $bookingDetails,
+            'currency' => $currency
+        )));
+    }
+
+>>>>>>> gli-2724
     public function setMedia()
     {
         parent::setMedia();
         Media::addJsDef(
             array(
                 'admin_order_slip_tab_link' => $this->context->link->getAdminLink('AdminSlip'),
+<<<<<<< HEAD
+=======
+                'ajax_booking_url' => $this->context->link->getAdminLink('AdminSlip', true),
+                'admin_order_view_link' => $this->context->link->getAdminLink('AdminOrders'),
+                'prevRoomType' => (int) Tools::getValue('id_room_type'),
+                'prevBookingDetail' => (int) Tools::getValue('id_booking_detail'),
+>>>>>>> gli-2724
             )
         );
         $this->addJS(_PS_JS_DIR_.'admin/slips.js');
