@@ -103,8 +103,6 @@ $(document).ready(function() {
             });
         });
     }
-<<<<<<< HEAD
-=======
 
     var allBookings = [];
     var currencySign = '';
@@ -239,5 +237,4 @@ $(document).ready(function() {
     if ($('select[name="id_order"]').val()) {
         $('select[name="id_order"]').trigger('change');
     }
->>>>>>> gli-2724
 });

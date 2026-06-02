@@ -238,6 +238,7 @@ class AdminSlipControllerCore extends AdminController
             'date_from' => date('Y-m-d'),
             'date_to' => date('Y-m-d')
         );
+        }
 
         $this->show_toolbar = false;
         return parent::renderForm();
@@ -245,9 +246,6 @@ class AdminSlipControllerCore extends AdminController
 
     public function postProcess()
     {
-<<<<<<< HEAD
-        if (Tools::getValue('submitAddorder_slip')) {
-=======
         if (Tools::getValue('submitCreditSlip')) {
             $creditSlipAmount = trim(Tools::getValue('credit_slip_amount'));
             if (empty($creditSlipAmount)) {
@@ -316,7 +314,6 @@ class AdminSlipControllerCore extends AdminController
                 return;
             }
         } else if (Tools::getValue('submitAddorder_slip')) {
->>>>>>> gli-2724
             if (!Validate::isDate(Tools::getValue('date_from'))) {
                 $this->errors[] = $this->l('Invalid "From" date');
             }
@@ -497,8 +494,6 @@ class AdminSlipControllerCore extends AdminController
         $this->ajaxDie(json_encode($response));
     }
 
-<<<<<<< HEAD
-=======
     public function ajaxProcessGetBookingDetails()
     {
         $idOrder = (int) Tools::getValue('id_order');
@@ -547,20 +542,16 @@ class AdminSlipControllerCore extends AdminController
         )));
     }
 
->>>>>>> gli-2724
     public function setMedia()
     {
         parent::setMedia();
         Media::addJsDef(
             array(
                 'admin_order_slip_tab_link' => $this->context->link->getAdminLink('AdminSlip'),
-<<<<<<< HEAD
-=======
                 'ajax_booking_url' => $this->context->link->getAdminLink('AdminSlip', true),
                 'admin_order_view_link' => $this->context->link->getAdminLink('AdminOrders'),
                 'prevRoomType' => (int) Tools::getValue('id_room_type'),
                 'prevBookingDetail' => (int) Tools::getValue('id_booking_detail'),
->>>>>>> gli-2724
             )
         );
         $this->addJS(_PS_JS_DIR_.'admin/slips.js');
