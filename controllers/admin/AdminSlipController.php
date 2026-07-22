@@ -257,7 +257,6 @@ public function initPageHeaderToolbar()
             'date_from' => date('Y-m-d'),
             'date_to' => date('Y-m-d')
         );
-        }
 
         $this->show_toolbar = false;
         return parent::renderForm();
