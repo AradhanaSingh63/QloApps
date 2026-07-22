@@ -77,8 +77,12 @@ class OrderSlipCore extends ObjectModel
     /** @var int */
     public $order_slip_type = 0;
 
+    public $remark;
+
     const REDEEM_STATUS_ACTIVE = 1;
     const REDEEM_STATUS_REDEEMED = 2;
+    const REFUND_ORDER_SLIP_TYPE = 1;
+    const MANUAL_CREDIT_SLIP_TYPE = 2;
 
     /**
      * @see ObjectModel::$definition
@@ -101,9 +105,10 @@ class OrderSlipCore extends ObjectModel
             'partial' =>                array('type' => self::TYPE_INT),
             'redeem_status' =>          array('type' => self::TYPE_INT, 'validate' => 'isUnsignedId'),
             'id_cart_rule' =>            array('type' => self::TYPE_INT, 'validate' => 'isUnsignedId'),
+            'order_slip_type' =>        array('type' => self::TYPE_INT, 'validate' => 'isInt'),
+            'remark' => array('type' => self::TYPE_STRING, 'validate' => 'isString'),
             'date_add' =>                array('type' => self::TYPE_DATE, 'validate' => 'isDate'),
             'date_upd' =>                array('type' => self::TYPE_DATE, 'validate' => 'isDate'),
-            'order_slip_type' =>        array('type' => self::TYPE_INT, 'validate' => 'isInt'),
         ),
     );
 
@@ -153,6 +158,34 @@ class OrderSlipCore extends ObjectModel
 		WHERE `id_customer` = '.(int)($customer_id).
         ($order_id ? ' AND `id_order` = '.(int)($order_id) : '').'
 		ORDER BY `date_add` DESC');
+    }
+
+    public static function getTotalSlipAmountByOrder($id_order)
+    {
+        return (float) Db::getInstance()->getValue('
+            SELECT SUM(`amount`)
+            FROM `'._DB_PREFIX_.'order_slip`
+            WHERE `id_order` = '.(int)$id_order
+        );
+    }
+
+    public static function getSlipIdsByOrder($id_order)
+    {
+        $rows = Db::getInstance()->executeS('
+            SELECT `id_order_slip`
+            FROM `'._DB_PREFIX_.'order_slip`
+            WHERE `id_order` = '.(int)$id_order.'
+            ORDER BY `id_order_slip` ASC'
+        );
+
+        $slipIds = array();
+        if ($rows) {
+            foreach ($rows as $row) {
+                $slipIds[] = (int) $row['id_order_slip'];
+            }
+        }
+
+        return $slipIds;
     }
 
     public static function getOrdersSlipDetail($id_order_slip = false, $id_order_detail = false)
@@ -310,7 +343,7 @@ class OrderSlipCore extends ObjectModel
         return OrderSlip::create($order, $product_list, $shipping);
     }
 
-    public static function create(Order $order, $product_list, $shipping_cost = false, $amount = 0, $amount_choosen = false, $add_tax = true)
+    public static function create(Order $order, $product_list, $shipping_cost = false, $amount = 0, $amount_choosen = false, $add_tax = true , $orderSlipType = false, $remark = '')
     {
         $currency = new Currency((int)$order->id_currency);
         $order_slip = new OrderSlip();
@@ -447,6 +480,9 @@ class OrderSlipCore extends ObjectModel
         }
         if (((float)$amount && $amount_choosen)) {
             $order_slip->order_slip_type = 2;
+        }
+        if (isset($remark) && $remark) {
+            $order_slip->remark = $remark;
         }
 
         if (!$order_slip->add()) {

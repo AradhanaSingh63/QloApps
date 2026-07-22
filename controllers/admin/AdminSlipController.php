@@ -52,20 +52,22 @@ class AdminSlipControllerCore extends AdminController
             ),
             'id_order' => array(
                 'title' => $this->l('Order ID'),
-                'align' => 'left',
+                'align' => 'center',
                 'class' => 'fixed-width-md',
                 'havingFilter' => true
             ),
             'date_add' => array(
                 'title' => $this->l('Date issued'),
                 'type' => 'date',
-                'align' => 'right',
+                'class' => 'fixed-width-md',
+                'align' => 'center',
                 'filter_key' => 'a!date_add'
             ),
             'id_pdf' => array(
                 'title' => $this->l('PDF'),
                 'align' => 'center',
                 'callback' => 'printPDFIcons',
+                'class' => 'fixed-width-xxl',
                 'orderby' => false,
                 'search' => false,
                 'remove_onclick' => true
@@ -80,13 +82,20 @@ class AdminSlipControllerCore extends AdminController
                 'align' => 'center',
                 'filter_key' => 'a!redeem_status',
                 'callback' => 'displayRedeemStatus',
-                'class' => 'fixed-width-md',
+                'class' => 'fixed-width-xxl',
             ),
             'id_cart_rule' => array(
                 'title' => $this->l('Voucher'),
                 'align' => 'center',
                 'callback' => 'displayVoucherLink',
-                'class' => 'fixed-width-lg',
+                'class' => 'fixed-width-xxl',
+            ),
+            'remark' => array(
+                'title' => $this->l('Remark'),
+                'filter_key' => 'a!remark',
+                'align' => 'center',
+                'orderby' => false,
+                'callback' => 'displayRemark',
             ),
         );
 
@@ -113,7 +122,7 @@ class AdminSlipControllerCore extends AdminController
         $this->_conf['33'] = $this->l('Voucher generated successfully');
     }
 
-    public function initPageHeaderToolbar()
+public function initPageHeaderToolbar()
     {
         if (empty($this->display) || $this->display == 'list') {
             $this->page_header_toolbar_btn['new_credit_slip'] = array(
@@ -126,7 +135,7 @@ class AdminSlipControllerCore extends AdminController
         parent::initPageHeaderToolbar();
     }
 
-    public function renderForm()
+   public function renderForm()
     {
         if ($this->display == 'add') {
             $orderList = Order::getOrdersWithInformations(null, null, true);
@@ -191,11 +200,20 @@ class AdminSlipControllerCore extends AdminController
                         'hint' => $this->l('Enter the amount of the credit slip for the customer'),
                         'name' => 'credit_slip_amount',
                         'required' => true,
-                        'col' => 2,
+                        'col' => 3,
                         'suffix' => $this->context->currency->sign,
                         'desc' => $this->context->smarty->fetch(
                             _PS_ADMIN_DIR_ . '/themes/default/template/controllers/slip/_booking_amount_desc.tpl'
                         ),
+                    ),
+                    array(
+                        'type' => 'textarea',
+                        'label' => $this->l('Remark'),
+                        'hint' => $this->l('Enter any remark for this credit slip'),
+                        'name' => 'remark',
+                        'required' => true,
+                        'col' => 9,
+                        'rows' => 3,
                     ),
                 ),
                 'submit' => array(
@@ -233,6 +251,7 @@ class AdminSlipControllerCore extends AdminController
                 'icon' => 'process-icon-download-alt'
             )
         );
+        }
 
         $this->fields_value = array(
             'date_from' => date('Y-m-d'),
@@ -244,7 +263,7 @@ class AdminSlipControllerCore extends AdminController
         return parent::renderForm();
     }
 
-    public function postProcess()
+   public function postProcess()
     {
         if (Tools::getValue('submitCreditSlip')) {
             $creditSlipAmount = trim(Tools::getValue('credit_slip_amount'));
@@ -254,6 +273,13 @@ class AdminSlipControllerCore extends AdminController
                 $this->errors[] = $this->l('Credit slip Amount must be a valid number');
             } elseif ((float) $creditSlipAmount <= 0) {
                 $this->errors[] = $this->l('Credit slip Amount must be greater than 0');
+            }
+
+            $remark = trim(Tools::getValue('remark'));
+            if (empty($remark)) {
+                $this->errors[] = $this->l('Remark is required.');
+            } elseif (!Validate::isString($remark)) {
+                $this->errors[] = $this->l('Remark must be a valid text.');
             }
 
             if (!count($this->errors)) {
@@ -284,7 +310,7 @@ class AdminSlipControllerCore extends AdminController
                     );
                 }
 
-                if (!$idCreditSlip = OrderSlip::create($objOrder, $bookingList, 0, $creditAmount, $creditAmount, 0 , OrderSlip::MANUAL_CREDIT_SLIP_TYPE)) {
+                if (!$idCreditSlip = OrderSlip::create($objOrder, $bookingList, 0, $creditAmount, $creditAmount, 0 , OrderSlip::MANUAL_CREDIT_SLIP_TYPE, $remark)) {
                     $this->errors[] = $this->l('A credit slip cannot be generated. ');
                 } else {
 
@@ -388,9 +414,13 @@ class AdminSlipControllerCore extends AdminController
         $this->initTabModuleList();
         $this->initToolbar();
         $this->initPageHeaderToolbar();
-        $this->content .= $this->renderList();
+        if ($this->display != "add") {
+            $this->content .= $this->renderList();
+        }
         $this->content .= $this->renderForm();
-        $this->content .= $this->renderOptions();
+        if ($this->display != "add") {
+            $this->content .= $this->renderOptions();
+        }
 
         $this->context->smarty->assign(array(
             'content' => $this->content,
@@ -438,6 +468,22 @@ class AdminSlipControllerCore extends AdminController
         ));
 
         return $this->createTemplate('_display_voucher_link.tpl')->fetch();
+    }
+
+    public function displayRemark($remark, $row)
+    {
+        if (empty($remark)) {
+            return '--';
+        }
+
+        $maxLength = 100;
+        if (Tools::strlen($remark) > $maxLength) {
+            return '<span title="' . htmlspecialchars($remark, ENT_QUOTES, 'UTF-8') . '">'
+                . htmlspecialchars(Tools::substr($remark, 0, $maxLength), ENT_QUOTES, 'UTF-8')
+                . '<strong style="cursor:pointer;">...</strong></span>';
+        }
+
+        return htmlspecialchars($remark, ENT_QUOTES, 'UTF-8');
     }
 
     public function displayStatusChangeLink($token, $id)
@@ -536,9 +582,14 @@ class AdminSlipControllerCore extends AdminController
         }
         unset($booking);
 
+        $totalSlipAmount = OrderSlip::getTotalSlipAmountByOrder($idOrder);
+        $slipIds = OrderSlip::getSlipIdsByOrder($idOrder);
+
         die(Tools::jsonEncode(array(
             'bookings' => $bookingDetails,
-            'currency' => $currency
+            'currency' => $currency,
+            'total_slip_amount' => $totalSlipAmount,
+            'slip_ids' => $slipIds
         )));
     }
 
