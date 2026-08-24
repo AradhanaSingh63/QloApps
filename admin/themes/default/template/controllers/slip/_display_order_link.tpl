@@ -20,5 +20,8 @@
 * @license https://opensource.org/license/osl-3-0-php Open Software License version 3.0
 *}
 
-{l s='Total credit slip amount for this order:'} <strong><span id="booking-total-slip-amount">-</span></strong><br>
-<span id="booking-slip-ids-wrapper" style="display:none;">{l s='Credit slip generated for this order: '} <strong><span id="booking-slip-ids"></span></strong></span>
+{if $id_order}
+    <a class="btn btn-link" href="{$link->getAdminLink('AdminOrders')|escape:'html':'UTF-8'}&id_order={$id_order}&vieworder" target="_blank">
+        #{$id_order}
+    </a>
+{/if}

@@ -189,6 +189,9 @@ public function initPageHeaderToolbar()
                         'required' => true,
                         'hint' => $this->l('Select a room to generate the credit slip for'),
                         'col' => 3,
+                        'desc' => $this->context->smarty->fetch(
+                            _PS_ADMIN_DIR_ . '/themes/default/template/controllers/slip/_booking_room_service_total_desc.tpl'
+                        ),
                         'options' => array(
                             'query' => array(),
                             'id' => 'id',
@@ -268,17 +271,17 @@ public function initPageHeaderToolbar()
         if (Tools::getValue('submitCreditSlip')) {
             $creditSlipAmount = trim(Tools::getValue('credit_slip_amount'));
             if (empty($creditSlipAmount)) {
-                $this->errors[] = $this->l('Credit slip Amount is required for the generate credit slip');
+                $this->errors[] = $this->l('Credit slip amount is required.');
             } elseif (!is_numeric($creditSlipAmount)) {
-                $this->errors[] = $this->l('Credit slip Amount must be a valid number');
+                $this->errors[] = $this->l('Credit slip amount is not valid');
             } elseif ((float) $creditSlipAmount <= 0) {
-                $this->errors[] = $this->l('Credit slip Amount must be greater than 0');
+                $this->errors[] = $this->l('Credit slip amount must be greater than 0');
             }
 
             $remark = trim(Tools::getValue('remark'));
             if (empty($remark)) {
                 $this->errors[] = $this->l('Remark is required.');
-            } elseif (!Validate::isString($remark)) {
+            } elseif (!Validate::isString($remark) || !Validate::isMessage($remark) || !Validate::isCleanHtml($remark)) {
                 $this->errors[] = $this->l('Remark must be a valid text.');
             }
 
@@ -310,7 +313,7 @@ public function initPageHeaderToolbar()
                     );
                 }
 
-                if (!$idCreditSlip = OrderSlip::create($objOrder, $bookingList, 0, $creditAmount, $creditAmount, 0 , OrderSlip::MANUAL_CREDIT_SLIP_TYPE, $remark)) {
+                if (!$idCreditSlip = OrderSlip::create($objOrder, $bookingList, 0, $creditAmount, $creditAmount, 0 , OrderSlip::ORDER_SLIP_TYPE_MANUAL, $remark)) {
                     $this->errors[] = $this->l('A credit slip cannot be generated. ');
                 } else {
 
@@ -463,7 +466,6 @@ public function initPageHeaderToolbar()
     public function displayVoucherLink($idCartRule, $row)
     {
         $this->context->smarty->assign(array(
-            'id_order' => 0,
             'id_cart_rule' => (int) $idCartRule,
             'row' => $row
         ));
@@ -475,10 +477,9 @@ public function initPageHeaderToolbar()
     {
         $this->context->smarty->assign(array(
             'id_order' => (int) $idOrder,
-            'id_cart_rule' => 0,
         ));
 
-        return $this->createTemplate('_display_voucher_link.tpl')->fetch();
+        return $this->createTemplate('_display_order_link.tpl')->fetch();
     }
 
     public function displayRemark($remark, $row)
@@ -593,14 +594,16 @@ public function initPageHeaderToolbar()
         }
         unset($booking);
 
-        $totalSlipAmount = OrderSlip::getTotalSlipAmountByOrder($idOrder);
-        $slipIds = OrderSlip::getSlipIdsByOrder($idOrder);
+        $totalSlipAmount = OrderSlip::getTotalOrderSlipAmountByOrder($idOrder);
+        $slipIds = array_column(OrderSlip::getSlipIdsByOrder($idOrder), 'id_order_slip');
 
         die(Tools::jsonEncode(array(
             'bookings' => $bookingDetails,
             'currency' => $currency,
             'total_slip_amount' => $totalSlipAmount,
-            'slip_ids' => $slipIds
+            'slip_ids' => $slipIds,
+            'order_total_amount' => (float) $objOrder->total_paid,
+            'order_total_paid' => (float) $objOrder->total_paid_real
         )));
     }
 
